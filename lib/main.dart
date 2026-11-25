@@ -1,13 +1,21 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_application_guia_turismo/firebase_options.dart';
 import 'package:provider/provider.dart';
+import 'controllers/auth_controller.dart';
 import 'controllers/camera_controller.dart';
 import 'controllers/gps_controller.dart';
 import 'controllers/lugares_controller.dart';
 import 'screens/cadastro_lugar.dart';
+import 'screens/login_screen.dart';
 import 'screens/lugares_screen.dart';
 import 'screens/mapa_lugares_screen.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const GuiaExplorerApp());
 }
 
@@ -18,6 +26,7 @@ class GuiaExplorerApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider(create: (_) => AuthController()),
         ChangeNotifierProvider(create: (_) => GpsController()),
         ChangeNotifierProvider(create: (_) => LugaresController()),
         ChangeNotifierProvider(create: (_) => CameraController()),
@@ -56,13 +65,34 @@ class GuiaExplorerApp extends StatelessWidget {
             ),
           ),
         ),
-        initialRoute: 'mapa',
+        home: const AuthGate(),
         routes: {
+          'login': (context) => const LoginScreen(),
           'mapa': (context) => const MapaLugaresScreen(),
           'lugares': (context) => const LugaresScreen(),
           'cadastro': (context) => const CadastroLugar(),
         },
       ),
+    );
+  }
+}
+
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<AuthController>(
+      builder: (context, auth, _) {
+        if (!auth.inicializado) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        return auth.temSessaoAtiva
+            ? const MapaLugaresScreen()
+            : const LoginScreen();
+      },
     );
   }
 }

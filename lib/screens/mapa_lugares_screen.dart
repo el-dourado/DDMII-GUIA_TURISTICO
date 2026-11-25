@@ -1,10 +1,13 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+import '../controllers/auth_controller.dart';
 import '../controllers/gps_controller.dart';
 import '../controllers/lugares_controller.dart';
 import '../models/lugares_model.dart';
+import '../services/acoes_lugar_service.dart';
 
 class MapaLugaresScreen extends StatefulWidget {
   const MapaLugaresScreen({super.key});
@@ -17,8 +20,19 @@ class _MapaLugaresScreenState extends State<MapaLugaresScreen> {
   final MapController _mapController = MapController();
   LugaresModel? _lugarSelecionado;
 
-  // Coordenada inicial de fallback caso o GPS ainda esteja carregando (São Paulo)
   static final LatLng _centroPadrao = LatLng(-23.55052, -46.633308);
+
+  ImageProvider? _resolverImagem(String? origem) {
+    if (origem == null || origem.isEmpty) return null;
+    if (origem.startsWith('http://') || origem.startsWith('https://')) {
+      return NetworkImage(origem);
+    }
+    final arquivo = File(origem);
+    if (arquivo.existsSync()) {
+      return FileImage(arquivo);
+    }
+    return null;
+  }
 
   void _exibirDetalhesLugar(BuildContext context, LugaresModel lugar) {
     setState(() {
@@ -29,126 +43,208 @@ class _MapaLugaresScreenState extends State<MapaLugaresScreen> {
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black26,
-              blurRadius: 16,
-              offset: Offset(0, -4),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 48,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[400],
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Icon(
-                      Icons.place_rounded,
-                      color: Theme.of(context).colorScheme.primary,
-                      size: 30,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          lugar.nome,
-                          style: const TextStyle(
-                            fontSize: 19,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.teal.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            lugar.categoria ?? "Categoria #${lugar.categoriaId}",
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.teal,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              if (lugar.descricao.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                Text(
-                  lugar.descricao,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[700],
-                    height: 1.4,
-                  ),
+      builder: (ctx) => Consumer2<LugaresController, GpsController>(
+        builder: (context, lugaresCtrl, gpsCtrl, _) {
+          final favorito = lugaresCtrl.isFavorito(lugar.id);
+          final distancia = gpsCtrl.formatarDistancia(
+            lugar.latitude,
+            lugar.longitude,
+          );
+          final fotoPath = lugaresCtrl.obterFotoLugar(lugar);
+          final imageProvider = _resolverImagem(fotoPath);
+
+          return Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(24)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 16,
+                  offset: Offset(0, -4),
                 ),
               ],
-              const SizedBox(height: 14),
-              Row(
+            ),
+            child: SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.explore_outlined, size: 16, color: Colors.grey[600]),
-                  const SizedBox(width: 6),
-                  Text(
-                    "Lat: ${lugar.latitude.toStringAsFixed(4)} | Lon: ${lugar.longitude.toStringAsFixed(4)}",
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  Center(
+                    child: Container(
+                      width: 48,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[400],
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (imageProvider != null) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image(
+                        image: imageProvider,
+                        height: 170,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              lugar.nome,
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 6,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.teal.withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    lugar.categoria ??
+                                        "Categoria #${lugar.categoriaId}",
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.teal,
+                                    ),
+                                  ),
+                                ),
+                                if (distancia != null)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue.withOpacity(0.12),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          Icons.directions_walk_rounded,
+                                          size: 14,
+                                          color: Colors.blue,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          "$distancia de você",
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.blue,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: favorito
+                            ? "Remover dos favoritos"
+                            : "Adicionar aos favoritos",
+                        onPressed: () =>
+                            lugaresCtrl.alternarFavorito(lugar.id),
+                        icon: Icon(
+                          favorito
+                              ? Icons.favorite_rounded
+                              : Icons.favorite_border_rounded,
+                          color: favorito ? Colors.red : Colors.grey,
+                          size: 30,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (lugar.descricao.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      lugar.descricao,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[700],
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () =>
+                              AcoesLugarService.mostrarOpcoesDeRota(
+                            context,
+                            lugar,
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor:
+                                Theme.of(context).colorScheme.primary,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          icon: const Icon(Icons.directions_rounded),
+                          label: const Text("Como Chegar"),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      OutlinedButton.icon(
+                        onPressed: () => AcoesLugarService.compartilharLugar(
+                          lugar,
+                          distancia: distancia,
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 12,
+                            horizontal: 14,
+                          ),
+                        ),
+                        icon: const Icon(Icons.share_rounded),
+                        label: const Text("Compartilhar"),
+                      ),
+                    ],
                   ),
                 ],
               ),
-              const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () => Navigator.pop(ctx),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  icon: const Icon(Icons.check),
-                  label: const Text("Fechar Detalhes"),
-                ),
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -157,10 +253,14 @@ class _MapaLugaresScreenState extends State<MapaLugaresScreen> {
   Widget build(BuildContext context) {
     final gpsController = context.watch<GpsController>();
     final lugaresController = context.watch<LugaresController>();
+    final authController = context.watch<AuthController>();
 
     final pontoInicial = gpsController.atual ??
         (lugaresController.lugares.isNotEmpty
-            ? LatLng(lugaresController.lugares.first.latitude, lugaresController.lugares.first.longitude)
+            ? LatLng(
+                lugaresController.lugares.first.latitude,
+                lugaresController.lugares.first.longitude,
+              )
             : _centroPadrao);
 
     return Scaffold(
@@ -186,6 +286,18 @@ class _MapaLugaresScreenState extends State<MapaLugaresScreen> {
             icon: const Icon(Icons.add_location_alt_rounded),
             onPressed: () => Navigator.pushNamed(context, 'cadastro'),
           ),
+          IconButton(
+            tooltip: "Conta e Logout",
+            onPressed: () => Navigator.pushNamed(context, 'login'),
+            icon: authController.usuarioGoogle?.photoURL != null
+                ? CircleAvatar(
+                    radius: 14,
+                    backgroundImage: NetworkImage(
+                      authController.usuarioGoogle!.photoURL!,
+                    ),
+                  )
+                : const Icon(Icons.account_circle_rounded),
+          ),
         ],
       ),
       body: Stack(
@@ -205,7 +317,6 @@ class _MapaLugaresScreenState extends State<MapaLugaresScreen> {
               ),
               MarkerLayer(
                 markers: [
-                  // 1. PIN de Localização Atual do Usuário (GPS)
                   if (gpsController.atual != null)
                     Marker(
                       point: gpsController.atual!,
@@ -228,26 +339,31 @@ class _MapaLugaresScreenState extends State<MapaLugaresScreen> {
                         ),
                       ),
                     ),
-
-                  // 2. PINS dos Lugares Cadastrados na API
                   ...lugaresController.lugares.map((lugar) {
                     final isSelected = _lugarSelecionado?.id == lugar.id;
+                    final isFav = lugaresController.isFavorito(lugar.id);
+                    final fotoPath = lugaresController.obterFotoLugar(lugar);
+                    final imageProvider = _resolverImagem(fotoPath);
+
                     return Marker(
                       point: LatLng(lugar.latitude, lugar.longitude),
-                      width: 60,
-                      height: 60,
+                      width: 64,
+                      height: 64,
                       child: GestureDetector(
                         onTap: () => _exibirDetalhesLugar(context, lugar),
                         child: AnimatedScale(
-                          scale: isSelected ? 1.25 : 1.0,
+                          scale: isSelected ? 1.2 : 1.0,
                           duration: const Duration(milliseconds: 250),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
+                          child: Stack(
+                            alignment: Alignment.center,
                             children: [
                               Container(
-                                padding: const EdgeInsets.all(6),
+                                width: 46,
+                                height: 46,
                                 decoration: BoxDecoration(
-                                  color: isSelected ? Colors.amber[700] : Colors.teal[700],
+                                  color: isSelected
+                                      ? Colors.amber[700]
+                                      : Colors.teal[700],
                                   shape: BoxShape.circle,
                                   boxShadow: const [
                                     BoxShadow(
@@ -256,14 +372,39 @@ class _MapaLugaresScreenState extends State<MapaLugaresScreen> {
                                       offset: Offset(0, 3),
                                     ),
                                   ],
-                                  border: Border.all(color: Colors.white, width: 2),
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 2.5,
+                                  ),
+                                  image: imageProvider != null
+                                      ? DecorationImage(
+                                          image: imageProvider,
+                                          fit: BoxFit.cover,
+                                        )
+                                      : null,
                                 ),
-                                child: const Icon(
-                                  Icons.place_rounded,
-                                  color: Colors.white,
-                                  size: 22,
-                                ),
+                                child: imageProvider == null
+                                    ? const Icon(
+                                        Icons.place_rounded,
+                                        color: Colors.white,
+                                        size: 24,
+                                      )
+                                    : null,
                               ),
+                              if (isFav)
+                                const Positioned(
+                                  top: 4,
+                                  right: 4,
+                                  child: CircleAvatar(
+                                    radius: 9,
+                                    backgroundColor: Colors.white,
+                                    child: Icon(
+                                      Icons.favorite_rounded,
+                                      size: 13,
+                                      color: Colors.red,
+                                    ),
+                                  ),
+                                ),
                             ],
                           ),
                         ),
@@ -274,8 +415,6 @@ class _MapaLugaresScreenState extends State<MapaLugaresScreen> {
               ),
             ],
           ),
-
-          // Indicador de Carregamento Superior
           if (lugaresController.carregando || gpsController.carregando)
             Positioned(
               top: 12,
@@ -283,9 +422,14 @@ class _MapaLugaresScreenState extends State<MapaLugaresScreen> {
               right: 16,
               child: Card(
                 elevation: 4,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   child: Row(
                     children: [
                       const SizedBox(
@@ -298,28 +442,38 @@ class _MapaLugaresScreenState extends State<MapaLugaresScreen> {
                         lugaresController.carregando
                             ? "Carregando lugares da API..."
                             : "Buscando sinal GPS...",
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ],
                   ),
                 ),
               ),
             ),
-
-          // Card Inferior com Total de Pontos no Mapa
           Positioned(
             bottom: 20,
             left: 16,
             child: Card(
               elevation: 4,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
               color: Colors.white.withOpacity(0.92),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.pin_drop_rounded, size: 18, color: Colors.teal),
+                    const Icon(
+                      Icons.pin_drop_rounded,
+                      size: 18,
+                      color: Colors.teal,
+                    ),
                     const SizedBox(width: 6),
                     Text(
                       "${lugaresController.lugares.length} lugares cadastrados",
@@ -355,6 +509,7 @@ class _MapaLugaresScreenState extends State<MapaLugaresScreen> {
             tooltip: "Minha localização",
             onPressed: () async {
               await gpsController.buscarLocal();
+              if (!context.mounted) return;
               if (gpsController.atual != null) {
                 _mapController.move(gpsController.atual!, 15.0);
               } else {

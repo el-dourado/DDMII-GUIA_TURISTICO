@@ -168,7 +168,11 @@ class _CadastroLugarState extends State<CadastroLugar> {
       categoriaId: int.tryParse(categoriaIdController.text.trim()) ?? 1,
     );
 
-    final sucesso = await lugaresController.cadastrarLugar(novoLugar);
+    final cameraController = Provider.of<CameraController>(context, listen: false);
+    final sucesso = await lugaresController.cadastrarLugar(
+      novoLugar,
+      caminhoFotoLocal: cameraController.imagemSelecionada?.path,
+    );
 
     if (!context.mounted) return;
 

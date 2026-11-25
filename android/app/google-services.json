@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "365511246432",
+    "project_id": "flutter-app-guia-turismo",
+    "storage_bucket": "flutter-app-guia-turismo.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:365511246432:android:4aa1ac378794c1da393905",
+        "android_client_info": {
+          "package_name": "com.example.flutter_application_guia_turismo"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "365511246432-i6vradrvkmj0ankl10emghj20d2l5s87.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAXdIQ3y89A3UaoJJPaJANVSq25NNpcc2w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "365511246432-i6vradrvkmj0ankl10emghj20d2l5s87.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

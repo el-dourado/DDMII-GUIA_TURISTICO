@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import '../services/gps_service.dart';
 
@@ -21,7 +22,8 @@ class GpsController extends ChangeNotifier {
     try {
       atual = await _servico.obterLocal();
       if (atual == null) {
-        erro = "Não foi possível obter a localização atual. Verifique o GPS e as permissões.";
+        erro =
+            "Não foi possível obter a localização atual. Verifique o GPS e as permissões.";
       }
     } catch (e) {
       erro = e.toString();
@@ -30,6 +32,25 @@ class GpsController extends ChangeNotifier {
       carregando = false;
       notifyListeners();
     }
+  }
+
+  double? calcularDistanciaEmMetros(double lat, double lon) {
+    if (atual == null) return null;
+    return Geolocator.distanceBetween(
+      atual!.latitude,
+      atual!.longitude,
+      lat,
+      lon,
+    );
+  }
+
+  String? formatarDistancia(double lat, double lon) {
+    final metros = calcularDistanciaEmMetros(lat, lon);
+    if (metros == null) return null;
+    if (metros < 1000) {
+      return '${metros.round()} m';
+    }
+    return '${(metros / 1000).toStringAsFixed(1)} km';
   }
 
   void adicionarPonto(LatLng ponto) {

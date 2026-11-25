@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_application_guia_turismo/models/lugares_model.dart';
 import 'package:http/http.dart' as http;
 
@@ -9,39 +10,80 @@ class LugaresServices {
       url,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token'
-      }
+        'Authorization': 'Bearer $token',
+      },
     );
 
-    if(resposta.statusCode == 200) {
-      final List dados = jsonDecode(resposta.body);
-      return dados.map((e) => LugaresModel.fromJson(e)).toList();
+    debugPrint('GET /lugares [${resposta.statusCode}]: ${resposta.body}');
+
+    if (resposta.statusCode == 200) {
+      final decoded = jsonDecode(resposta.body);
+
+      if (decoded is List) {
+        return decoded.map((e) => LugaresModel.fromJson(e)).toList();
+      }
+
+      if (decoded is Map<String, dynamic>) {
+        final lista = decoded['lugares'] ??
+            decoded['data'] ??
+            decoded['dados'] ??
+            decoded.values.firstWhere((v) => v is List, orElse: () => null);
+
+        if (lista is List) {
+          return lista.map((e) => LugaresModel.fromJson(e)).toList();
+        }
+
+        throw Exception(
+          decoded['erro'] ??
+              decoded['message'] ??
+              decoded['mensagem'] ??
+              'Resposta inesperada da API.',
+        );
+      }
+
+      throw Exception('Formato de resposta inválido da API.');
     } else {
-      final erro = jsonDecode(resposta.body);
-      throw Exception(erro['erro']);
+      throw Exception(_extrairErro(resposta));
     }
   }
 
   Future<String> cadastrarLugar(LugaresModel lugar, String token) async {
-    // Trecho finalizado entre 21:05 (fim de 4_part_004.mp4) e 21:21 (início de 6_part_000.mp4).
-    // Abaixo está a implementação correspondente à chamada feita em LugaresController
-    // e à documentação do Swagger (POST https://guia.liliaborges.com.br/lugares -> 201):
     final url = Uri.parse('https://guia.liliaborges.com.br/lugares');
     final resposta = await http.post(
       url,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token'
+        'Authorization': 'Bearer $token',
       },
       body: jsonEncode(lugar.toJson()),
     );
 
-    if(resposta.statusCode == 201 || resposta.statusCode == 200) {
+    debugPrint('POST /lugares [${resposta.statusCode}]: ${resposta.body}');
+
+    if (resposta.statusCode == 201 || resposta.statusCode == 200) {
       final dados = jsonDecode(resposta.body);
-      return dados['mensagem'] ?? 'Lugar cadastrado com sucesso!';
+      if (dados is Map<String, dynamic>) {
+        return dados['mensagem'] ??
+            dados['message'] ??
+            'Lugar cadastrado com sucesso!';
+      }
+      return 'Lugar cadastrado com sucesso!';
     } else {
-      final erro = jsonDecode(resposta.body);
-      throw Exception(erro['erro']);
+      throw Exception(_extrairErro(resposta));
     }
+  }
+
+  String _extrairErro(http.Response resposta) {
+    try {
+      final erro = jsonDecode(resposta.body);
+      if (erro is Map<String, dynamic>) {
+        final msg = erro['erro'] ??
+            erro['message'] ??
+            erro['error'] ??
+            erro['mensagem'];
+        if (msg != null) return '(${resposta.statusCode}) $msg';
+      }
+    } catch (_) {}
+    return 'Erro HTTP ${resposta.statusCode}: ${resposta.body}';
   }
 }
