@@ -12,11 +12,14 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final _nomeController = TextEditingController();
   final _emailController = TextEditingController();
   final _senhaController = TextEditingController();
+  bool _modoCadastro = false;
 
   @override
   void dispose() {
+    _nomeController.dispose();
     _emailController.dispose();
     _senhaController.dispose();
     super.dispose();
@@ -29,6 +32,43 @@ class _LoginScreenState extends State<LoginScreen> {
       MaterialPageRoute(builder: (_) => const MapaLugaresScreen()),
       (route) => false,
     );
+  }
+
+  Future<void> _enviarFormularioApi(AuthController authController) async {
+    final nome = _nomeController.text.trim();
+    final email = _emailController.text.trim();
+    final senha = _senhaController.text.trim();
+
+    if (_modoCadastro && nome.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Informe seu nome para cadastrar.')),
+      );
+      return;
+    }
+    if (email.isEmpty || senha.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Preencha e-mail e senha.')),
+      );
+      return;
+    }
+
+    final ok = _modoCadastro
+        ? await authController.cadastrar(nome, email, senha)
+        : await authController.login(email, senha);
+
+    if (ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.teal,
+          content: Text(
+            _modoCadastro
+                ? 'Conta criada e autenticada na API!'
+                : 'Login na API realizado com sucesso!',
+          ),
+        ),
+      );
+      await _abrirGuia();
+    }
   }
 
   @override
@@ -53,16 +93,16 @@ class _LoginScreenState extends State<LoginScreen> {
                 if (user != null) ...[
                   Center(
                     child: CircleAvatar(
-                      radius: 42,
+                      radius: 40,
                       backgroundImage: user.photoURL != null
                           ? NetworkImage(user.photoURL!)
                           : null,
                       child: user.photoURL == null
-                          ? const Icon(Icons.person, size: 42)
+                          ? const Icon(Icons.person, size: 40)
                           : null,
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   Text(
                     user.displayName ?? 'Usuário Google',
                     style: Theme.of(context).textTheme.titleLarge,
@@ -73,20 +113,50 @@ class _LoginScreenState extends State<LoginScreen> {
                     style: Theme.of(context).textTheme.bodyMedium,
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 18),
                 ],
 
-                Text(
-                  'Acesso à API (Lugares)',
-                  style: Theme.of(context).textTheme.titleMedium,
+                // Seletor Entrar / Criar Conta na API
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment<bool>(
+                      value: false,
+                      label: Text('Entrar na API'),
+                      icon: Icon(Icons.login),
+                    ),
+                    ButtonSegment<bool>(
+                      value: true,
+                      label: Text('Criar Conta'),
+                      icon: Icon(Icons.person_add),
+                    ),
+                  ],
+                  selected: {_modoCadastro},
+                  onSelectionChanged: (valor) {
+                    setState(() {
+                      _modoCadastro = valor.first;
+                    });
+                  },
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
+
+                if (_modoCadastro) ...[
+                  TextField(
+                    controller: _nomeController,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      labelText: 'Nome completo',
+                      prefixIcon: Icon(Icons.person_outline),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
                 TextField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(
-                    labelText: 'E-mail da API',
-                    prefixIcon: Icon(Icons.email),
+                    labelText: 'E-mail',
+                    prefixIcon: Icon(Icons.email_outlined),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -95,29 +165,22 @@ class _LoginScreenState extends State<LoginScreen> {
                   obscureText: true,
                   decoration: const InputDecoration(
                     labelText: 'Senha',
-                    prefixIcon: Icon(Icons.lock),
+                    prefixIcon: Icon(Icons.lock_outline),
                   ),
                 ),
                 const SizedBox(height: 16),
+
                 ElevatedButton.icon(
-                  onPressed: () async {
-                    final email = _emailController.text.trim();
-                    final senha = _senhaController.text.trim();
-                    if (email.isEmpty || senha.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Preencha e-mail e senha da API.'),
-                        ),
-                      );
-                      return;
-                    }
-                    final ok = await authController.login(email, senha);
-                    if (ok && context.mounted) {
-                      await _abrirGuia();
-                    }
-                  },
-                  icon: const Icon(Icons.vpn_key),
-                  label: const Text('Entrar na API'),
+                  onPressed: () => _enviarFormularioApi(authController),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  icon: Icon(_modoCadastro ? Icons.person_add : Icons.vpn_key),
+                  label: Text(
+                    _modoCadastro ? 'Cadastrar e Entrar' : 'Entrar na API',
+                  ),
                 ),
 
                 const SizedBox(height: 24),

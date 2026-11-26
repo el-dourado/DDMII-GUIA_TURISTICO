@@ -36,7 +36,30 @@ class AuthController extends ChangeNotifier {
       await SessionService.salvarToken(token);
       return true;
     } catch (e) {
-      erro = 'Erro ao fazer login na API: $e';
+      erro = e.toString().replaceAll('Exception: ', '');
+      return false;
+    } finally {
+      carregando = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> cadastrar(String nome, String email, String senha) async {
+    carregando = true;
+    erro = '';
+    notifyListeners();
+    try {
+      final tokenCadastro = await _authService.cadastrar(nome, email, senha);
+      if (tokenCadastro != null && tokenCadastro.isNotEmpty) {
+        token = tokenCadastro;
+      } else {
+        // Se o cadastro não retornou token direto, já faz login automaticamente
+        token = await _authService.login(email, senha);
+      }
+      await SessionService.salvarToken(token);
+      return true;
+    } catch (e) {
+      erro = e.toString().replaceAll('Exception: ', '');
       return false;
     } finally {
       carregando = false;
